@@ -22,6 +22,14 @@ export interface LoginResponse {
   user: AuthUser
 }
 
+export interface RegisterResponse {
+  success: true
+  message: string
+  user: AuthUser & {
+    createdAt: string
+  }
+}
+
 export interface MeResponse {
   success: true
   user: AuthUser
@@ -117,19 +125,14 @@ export interface WorkItem {
   description: string | null
   status: WorkItemStatus
   priority: WorkItemPriority
-
   team: WorkItemTeam
-
   assignee: WorkItemUser | null
   createdBy: WorkItemUser
   assignedBy: WorkItemUser | null
-
   dueDate: string | null
-
   version: number
   createdAt: string
   updatedAt: string
-
   comments?: WorkItemComment[]
   activities?: WorkItemActivity[]
 }
@@ -179,9 +182,7 @@ export interface TeamResponse {
 }
 
 function createIdempotencyKey() {
-  return `${Date.now()}-${Math.random()
-    .toString(36)
-    .slice(2)}`
+  return `${Date.now()}-${Math.random().toString(36).slice(2)}`
 }
 
 export async function apiRequest<T extends object>(
@@ -192,28 +193,17 @@ export async function apiRequest<T extends object>(
 
   const headers = new Headers(options.headers)
 
-  headers.set(
-    'Content-Type',
-    'application/json',
-  )
+  headers.set('Content-Type', 'application/json')
 
   if (token) {
-    headers.set(
-      'Authorization',
-      `Bearer ${token}`,
-    )
+    headers.set('Authorization', `Bearer ${token}`)
   }
 
   if (
     options.method &&
-    ['POST', 'DELETE'].includes(
-      options.method.toUpperCase(),
-    )
+    ['POST', 'DELETE'].includes(options.method.toUpperCase())
   ) {
-    headers.set(
-      'Idempotency-Key',
-      createIdempotencyKey(),
-    )
+    headers.set('Idempotency-Key', createIdempotencyKey())
   }
 
   const response = await fetch(
@@ -229,19 +219,13 @@ export async function apiRequest<T extends object>(
 
   const data =
     contentType.includes('application/json')
-      ? ((await response.json()) as
-          | T
-          | ApiError)
+      ? ((await response.json()) as T | ApiError)
       : null
 
   if (!response.ok) {
     if (response.status === 401 && token) {
-      localStorage.removeItem(
-        'opsflow_token',
-      )
-      localStorage.removeItem(
-        'opsflow_user',
-      )
+      localStorage.removeItem('opsflow_token')
+      localStorage.removeItem('opsflow_user')
     }
 
     const message =
@@ -273,6 +257,24 @@ export async function login(
   )
 }
 
+export async function register(
+  name: string,
+  email: string,
+  password: string,
+): Promise<RegisterResponse> {
+  return apiRequest<RegisterResponse>(
+    '/auth/register',
+    {
+      method: 'POST',
+      body: JSON.stringify({
+        name,
+        email,
+        password,
+      }),
+    },
+  )
+}
+
 export async function getCurrentUser(): Promise<MeResponse> {
   return apiRequest<MeResponse>(
     '/auth/me',
@@ -291,52 +293,31 @@ export async function getWorkItems(
   const params = new URLSearchParams()
 
   if (filters.search) {
-    params.set(
-      'search',
-      filters.search,
-    )
+    params.set('search', filters.search)
   }
 
   if (filters.status) {
-    params.set(
-      'status',
-      filters.status,
-    )
+    params.set('status', filters.status)
   }
 
   if (filters.priority) {
-    params.set(
-      'priority',
-      filters.priority,
-    )
+    params.set('priority', filters.priority)
   }
 
   if (filters.assigneeId) {
-    params.set(
-      'assigneeId',
-      filters.assigneeId,
-    )
+    params.set('assigneeId', filters.assigneeId)
   }
 
   if (filters.teamId) {
-    params.set(
-      'teamId',
-      filters.teamId,
-    )
+    params.set('teamId', filters.teamId)
   }
 
   if (filters.page !== undefined) {
-    params.set(
-      'page',
-      String(filters.page),
-    )
+    params.set('page', String(filters.page))
   }
 
   if (filters.limit !== undefined) {
-    params.set(
-      'limit',
-      String(filters.limit),
-    )
+    params.set('limit', String(filters.limit))
   }
 
   const query = params.toString()
@@ -462,11 +443,6 @@ export async function getTeam(
 }
 
 export function logout() {
-  localStorage.removeItem(
-    'opsflow_token',
-  )
-
-  localStorage.removeItem(
-    'opsflow_user',
-  )
+  localStorage.removeItem('opsflow_token')
+  localStorage.removeItem('opsflow_user')
 }

@@ -2,7 +2,6 @@ import {
   useState,
   type FormEvent,
 } from 'react'
-
 import {
   AlertCircle,
   ArrowRight,
@@ -13,93 +12,73 @@ import {
   Mail,
   ShieldCheck,
   Sparkles,
+  User,
 } from 'lucide-react'
+import { Link, useNavigate } from 'react-router-dom'
 
-import {
-  Link,
-  useLocation,
-  useNavigate,
-} from 'react-router-dom'
+import { register } from '../lib/api'
 
-import { useAuth } from '../context/AuthContext'
-
-interface LocationState {
-  registered?: boolean
-}
-
-function Login() {
+function Signup() {
   const navigate = useNavigate()
-  const location = useLocation()
 
-  const {
-    login,
-  } = useAuth()
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
 
-  const [email, setEmail] =
-    useState('')
-
-  const [password, setPassword] =
-    useState('')
-
-  const [showPassword, setShowPassword] =
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] =
     useState(false)
 
-  const [error, setError] =
-    useState('')
-
-  const [isSubmitting, setIsSubmitting] =
-    useState(false)
-
-  const registered =
-    (location.state as LocationState | null)
-      ?.registered === true
+  const [error, setError] = useState('')
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const handleSubmit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
     event.preventDefault()
-
     setError('')
 
-    const trimmedEmail = email.trim()
-
-    if (!trimmedEmail) {
-      setError(
-        'Please enter your email address.',
-      )
+    if (!name.trim()) {
+      setError('Please enter your full name.')
       return
     }
 
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedEmail)) {
-      setError(
-        'Please enter a valid email address.',
-      )
+    if (!email.trim()) {
+      setError('Please enter your email address.')
       return
     }
 
-    if (!password) {
-      setError(
-        'Please enter your password.',
-      )
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters.')
+      return
+    }
+
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.')
       return
     }
 
     setIsSubmitting(true)
 
     try {
-      await login(
-        trimmedEmail,
+      await register(
+        name.trim(),
+        email.trim(),
         password,
       )
 
-      navigate('/', {
+      navigate('/login', {
         replace: true,
+        state: {
+          registered: true,
+        },
       })
     } catch (err) {
       setError(
         err instanceof Error
           ? err.message
-          : 'Unable to sign in. Please check your credentials and try again.',
+          : 'Unable to create account.',
       )
     } finally {
       setIsSubmitting(false)
@@ -110,9 +89,7 @@ function Login() {
     <main className="relative min-h-screen overflow-hidden bg-[#07070a] text-white">
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-indigo-600/15 blur-[120px]" />
-
         <div className="absolute right-[-120px] top-[20%] h-[460px] w-[460px] rounded-full bg-violet-600/12 blur-[140px]" />
-
         <div className="absolute bottom-[-180px] left-[35%] h-[420px] w-[420px] rounded-full bg-cyan-500/10 blur-[130px]" />
       </div>
 
@@ -130,7 +107,6 @@ function Login() {
                   <p className="text-lg font-semibold tracking-tight">
                     OpsFlow
                   </p>
-
                   <p className="text-xs text-zinc-500">
                     Operations workspace
                   </p>
@@ -143,13 +119,12 @@ function Login() {
                 </p>
 
                 <h1 className="text-5xl font-semibold leading-[1.05] tracking-[-0.04em] xl:text-6xl">
-                  Keep important work moving.
+                  Start keeping important work moving.
                 </h1>
 
                 <p className="mt-7 max-w-lg text-base leading-7 text-zinc-400">
-                  Coordinate work, ownership,
-                  priorities and operational history
-                  from one reliable workspace.
+                  Create your OpsFlow account and join your
+                  operational workspace.
                 </p>
               </div>
 
@@ -165,7 +140,6 @@ function Login() {
                     className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3"
                   >
                     <CheckCircle2 className="h-4 w-4 shrink-0 text-indigo-300" />
-
                     <span className="text-sm text-zinc-300">
                       {item}
                     </span>
@@ -197,34 +171,22 @@ function Login() {
 
               <div>
                 <p className="text-sm font-medium text-indigo-300">
-                  WELCOME BACK
+                  GET STARTED
                 </p>
 
                 <h2 className="mt-2 text-3xl font-semibold tracking-tight">
-                  Sign in to OpsFlow
+                  Create your account
                 </h2>
 
                 <p className="mt-3 text-sm leading-6 text-zinc-500">
-                  Access your operational workspace
-                  and continue where you left off.
+                  Join OpsFlow and start managing operational
+                  work.
                 </p>
               </div>
-
-              {registered && (
-                <div className="mt-7 flex items-start gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.07] p-4">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-300" />
-
-                  <p className="text-sm leading-5 text-emerald-200">
-                    Account created successfully.
-                    You can now sign in with your new account.
-                  </p>
-                </div>
-              )}
 
               {error && (
                 <div className="mt-7 flex items-start gap-3 rounded-2xl border border-red-400/20 bg-red-400/[0.07] p-4">
                   <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-300" />
-
                   <p className="text-sm leading-5 text-red-200">
                     {error}
                   </p>
@@ -235,6 +197,32 @@ function Login() {
                 onSubmit={handleSubmit}
                 className="mt-8 space-y-5"
               >
+                <div>
+                  <label
+                    htmlFor="name"
+                    className="mb-2 block text-sm font-medium text-zinc-300"
+                  >
+                    Full name
+                  </label>
+
+                  <div className="relative">
+                    <User className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
+
+                    <input
+                      id="name"
+                      type="text"
+                      value={name}
+                      onChange={(event) =>
+                        setName(event.target.value)
+                      }
+                      placeholder="Your full name"
+                      autoComplete="name"
+                      disabled={isSubmitting}
+                      className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-4 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-indigo-400/50 focus:bg-white/[0.05]"
+                    />
+                  </div>
+                </div>
+
                 <div>
                   <label
                     htmlFor="email"
@@ -250,13 +238,9 @@ function Login() {
                       id="email"
                       type="email"
                       value={email}
-                      onChange={(event) => {
+                      onChange={(event) =>
                         setEmail(event.target.value)
-
-                        if (error) {
-                          setError('')
-                        }
-                      }}
+                      }
                       placeholder="you@company.com"
                       autoComplete="email"
                       disabled={isSubmitting}
@@ -284,15 +268,11 @@ function Login() {
                           : 'password'
                       }
                       value={password}
-                      onChange={(event) => {
+                      onChange={(event) =>
                         setPassword(event.target.value)
-
-                        if (error) {
-                          setError('')
-                        }
-                      }}
-                      placeholder="Enter your password"
-                      autoComplete="current-password"
+                      }
+                      placeholder="At least 8 characters"
+                      autoComplete="new-password"
                       disabled={isSubmitting}
                       className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-indigo-400/50 focus:bg-white/[0.05]"
                     />
@@ -304,8 +284,7 @@ function Login() {
                           (value) => !value,
                         )
                       }
-                      disabled={isSubmitting}
-                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/5 hover:text-zinc-300 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/5 hover:text-zinc-300"
                       aria-label={
                         showPassword
                           ? 'Hide password'
@@ -321,6 +300,70 @@ function Login() {
                   </div>
                 </div>
 
+                <div>
+                  <label
+                    htmlFor="confirmPassword"
+                    className="mb-2 block text-sm font-medium text-zinc-300"
+                  >
+                    Confirm password
+                  </label>
+
+                  <div className="relative">
+                    <LockKeyhole className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-600" />
+
+                    <input
+                      id="confirmPassword"
+                      type={
+                        showConfirmPassword
+                          ? 'text'
+                          : 'password'
+                      }
+                      value={confirmPassword}
+                      onChange={(event) =>
+                        setConfirmPassword(
+                          event.target.value,
+                        )
+                      }
+                      placeholder="Re-enter your password"
+                      autoComplete="new-password"
+                      disabled={isSubmitting}
+                      className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.035] pl-11 pr-12 text-sm text-white outline-none transition placeholder:text-zinc-700 focus:border-indigo-400/50 focus:bg-white/[0.05]"
+                    />
+
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowConfirmPassword(
+                          (value) => !value,
+                        )
+                      }
+                      className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-zinc-600 transition hover:bg-white/5 hover:text-zinc-300"
+                      aria-label={
+                        showConfirmPassword
+                          ? 'Hide password'
+                          : 'Show password'
+                      }
+                    >
+                      {showConfirmPassword ? (
+                        <EyeOff className="h-4 w-4" />
+                      ) : (
+                        <Eye className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-indigo-400/10 bg-indigo-400/[0.04] px-4 py-3">
+                  <p className="text-xs leading-5 text-zinc-500">
+                    New accounts are created as{' '}
+                    <span className="font-medium text-zinc-300">
+                      Member
+                    </span>
+                    . Workspace administrators can manage
+                    access separately.
+                  </p>
+                </div>
+
                 <button
                   type="submit"
                   disabled={isSubmitting}
@@ -329,38 +372,35 @@ function Login() {
                   {isSubmitting ? (
                     <>
                       <div className="h-4 w-4 animate-spin rounded-full border-2 border-black/20 border-t-black" />
-                      Signing in...
+                      Creating account...
                     </>
                   ) : (
                     <>
-                      Sign in
+                      Create account
                       <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5" />
                     </>
                   )}
                 </button>
               </form>
 
-              <div className="mt-6 text-center">
-                <p className="text-sm text-zinc-500">
-                  Don't have an account?{' '}
-                  <Link
-                    to="/signup"
-                    className="font-medium text-indigo-300 transition hover:text-indigo-200"
-                  >
-                    Create an account
-                  </Link>
-                </p>
+              <div className="mt-8 text-center text-sm text-zinc-500">
+                Already have an account?{' '}
+                <Link
+                  to="/login"
+                  className="font-medium text-indigo-300 transition hover:text-indigo-200"
+                >
+                  Sign in
+                </Link>
               </div>
 
-              <div className="mt-8 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
+              <div className="mt-6 flex items-center gap-3 rounded-xl border border-white/10 bg-white/[0.02] px-4 py-3">
                 <ShieldCheck className="h-4 w-4 shrink-0 text-zinc-500" />
 
                 <p className="text-xs leading-5 text-zinc-600">
-                  Your session is protected by
-                  server-side JWT authentication.
+                  Your password is securely hashed on the
+                  server.
                 </p>
               </div>
-
             </div>
           </section>
         </div>
@@ -369,4 +409,4 @@ function Login() {
   )
 }
 
-export default Login
+export default Signup

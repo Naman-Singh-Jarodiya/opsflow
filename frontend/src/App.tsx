@@ -17,6 +17,7 @@ import CreateWorkItem from './pages/CreateWorkItem'
 import Dashboard from './pages/Dashboard'
 import Login from './pages/Login'
 import MyWork from './pages/MyWork'
+import Signup from './pages/Signup'
 import Teams from './pages/Teams'
 import WorkItemDetail from './pages/WorkItemDetail'
 import WorkItems from './pages/WorkItems'
@@ -54,6 +55,11 @@ function App() {
           <Route
             path="/login"
             element={<Login />}
+          />
+
+          <Route
+            path="/signup"
+            element={<Signup />}
           />
 
           <Route element={<ProtectedRoute />}>

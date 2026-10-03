@@ -37,13 +37,17 @@ export async function registerUser(input: RegisterInput) {
     throw new Error('EMAIL_ALREADY_EXISTS')
   }
 
-  const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS)
+  const passwordHash = await bcrypt.hash(
+    input.password,
+    SALT_ROUNDS,
+  )
 
   const user = await prisma.user.create({
     data: {
       name: input.name.trim(),
       email,
       passwordHash,
+      role: 'MEMBER',
     },
     select: {
       id: true,
