@@ -253,6 +253,19 @@ export declare function changeWorkItemStatus(workItemId: string, input: ChangeSt
 }>;
 export declare function deleteWorkItem(workItemId: string, userId: string): Promise<{
     id: string;
-    deletedAt: Date;
+    createdAt: Date;
+    updatedAt: Date;
+    description: string | null;
+    teamId: string;
+    title: string;
+    status: import("@prisma/client").$Enums.WorkItemStatus;
+    priority: import("@prisma/client").$Enums.WorkItemPriority;
+    assigneeId: string | null;
+    createdById: string;
+    assignedById: string | null;
+    dueDate: Date | null;
+    version: number;
+    deletedAt: Date | null;
+    deletedById: string | null;
 }>;
 export {};

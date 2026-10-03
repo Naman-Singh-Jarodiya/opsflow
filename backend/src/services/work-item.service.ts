@@ -4,6 +4,7 @@ import type {
 } from '@prisma/client'
 
 import prisma from '../config/prisma.js'
+
 import {
   canAccessTeam,
   canAccessWorkItem,
@@ -198,11 +199,13 @@ export async function getWorkItems(
 
   const where = {
     deletedAt: null,
+
     teamId: input.teamId
       ? input.teamId
       : {
           in: accessibleTeamIds,
         },
+
     ...(input.search
       ? {
           OR: [
@@ -221,16 +224,19 @@ export async function getWorkItems(
           ],
         }
       : {}),
+
     ...(input.status
       ? {
           status: input.status,
         }
       : {}),
+
     ...(input.priority
       ? {
           priority: input.priority,
         }
       : {}),
+
     ...(input.assigneeId
       ? {
           assigneeId: input.assigneeId,
@@ -262,6 +268,7 @@ export async function getWorkItems(
         },
       },
     }),
+
     prisma.workItem.count({
       where,
     }),
@@ -418,26 +425,32 @@ export async function updateWorkItem(
               title: input.title.trim(),
             }
           : {}),
+
         ...(input.description !== undefined
           ? {
-              description: input.description.trim() || null,
+              description:
+                input.description.trim() || null,
             }
           : {}),
+
         ...(input.priority !== undefined
           ? {
               priority: input.priority,
             }
           : {}),
+
         ...(input.teamId !== undefined
           ? {
               teamId: input.teamId,
             }
           : {}),
+
         ...(input.dueDate !== undefined
           ? {
               dueDate: input.dueDate,
             }
           : {}),
+
         version: {
           increment: 1,
         },
@@ -483,7 +496,7 @@ export async function updateWorkItem(
       },
     })
 
-    if (!updatedItem) {
+    if (!updatedItem || updatedItem.deletedAt) {
       throw new Error('WORK_ITEM_NOT_FOUND')
     }
 
@@ -611,7 +624,7 @@ export async function assignWorkItem(
       },
     })
 
-    if (!updatedItem) {
+    if (!updatedItem || updatedItem.deletedAt) {
       throw new Error('WORK_ITEM_NOT_FOUND')
     }
 
@@ -620,11 +633,14 @@ export async function assignWorkItem(
         type: input.assigneeId
           ? 'ASSIGNED'
           : 'UNASSIGNED',
+
         message: input.assigneeId
           ? `Work item "${currentItem.title}" was assigned`
           : `Work item "${currentItem.title}" was unassigned`,
+
         workItemId,
         userId,
+
         metadata: {
           previousAssigneeId: currentItem.assigneeId,
           newAssigneeId: input.assigneeId,
@@ -727,16 +743,20 @@ export async function changeWorkItemStatus(
       },
     })
 
-    if (!updatedItem) {
+    if (!updatedItem || updatedItem.deletedAt) {
       throw new Error('WORK_ITEM_NOT_FOUND')
     }
 
     await tx.activity.create({
       data: {
         type: 'STATUS_CHANGED',
-        message: `Work item "${currentItem.title}" changed from ${currentItem.status} to ${input.status}`,
+        message:
+          `Work item "${currentItem.title}" changed ` +
+          `from ${currentItem.status} to ${input.status}`,
+
         workItemId,
         userId,
+
         metadata: {
           previousStatus: currentItem.status,
           newStatus: input.status,
@@ -767,23 +787,23 @@ export async function deleteWorkItem(
   }
 
   return prisma.$transaction(async (tx) => {
-    const workItem = await tx.workItem.findFirst({
+    const workItem = await tx.workItem.findUnique({
       where: {
         id: workItemId,
-        deletedAt: null,
       },
       select: {
         id: true,
         title: true,
         version: true,
+        deletedAt: true,
       },
     })
 
-    if (!workItem) {
+    if (!workItem || workItem.deletedAt) {
       throw new Error('WORK_ITEM_NOT_FOUND')
     }
 
-    const deleteResult = await tx.workItem.updateMany({
+    const result = await tx.workItem.updateMany({
       where: {
         id: workItemId,
         deletedAt: null,
@@ -797,27 +817,36 @@ export async function deleteWorkItem(
       },
     })
 
-    if (deleteResult.count === 0) {
+    if (result.count === 0) {
+      throw new Error('WORK_ITEM_NOT_FOUND')
+    }
+
+    const deletedItem = await tx.workItem.findUnique({
+      where: {
+        id: workItemId,
+      },
+    })
+
+    if (!deletedItem) {
       throw new Error('WORK_ITEM_NOT_FOUND')
     }
 
     await tx.activity.create({
       data: {
         type: 'DELETED',
-        message: `Work item "${workItem.title}" was deleted`,
+        message:
+          `Work item "${workItem.title}" was deleted`,
+
         workItemId,
         userId,
+
         metadata: {
-          deletedById: userId,
           previousVersion: workItem.version,
-          newVersion: workItem.version + 1,
+          deletedVersion: deletedItem.version,
         },
       },
     })
 
-    return {
-      id: workItem.id,
-      deletedAt: new Date(),
-    }
+    return deletedItem
   })
 }

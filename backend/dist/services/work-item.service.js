@@ -368,7 +368,7 @@ export async function updateWorkItem(workItemId, input, userId) {
                 },
             },
         });
-        if (!updatedItem) {
+        if (!updatedItem || updatedItem.deletedAt) {
             throw new Error('WORK_ITEM_NOT_FOUND');
         }
         await tx.activity.create({
@@ -473,7 +473,7 @@ export async function assignWorkItem(workItemId, input, userId) {
                 },
             },
         });
-        if (!updatedItem) {
+        if (!updatedItem || updatedItem.deletedAt) {
             throw new Error('WORK_ITEM_NOT_FOUND');
         }
         await tx.activity.create({
@@ -566,13 +566,14 @@ export async function changeWorkItemStatus(workItemId, input, userId) {
                 },
             },
         });
-        if (!updatedItem) {
+        if (!updatedItem || updatedItem.deletedAt) {
             throw new Error('WORK_ITEM_NOT_FOUND');
         }
         await tx.activity.create({
             data: {
                 type: 'STATUS_CHANGED',
-                message: `Work item "${currentItem.title}" changed from ${currentItem.status} to ${input.status}`,
+                message: `Work item "${currentItem.title}" changed ` +
+                    `from ${currentItem.status} to ${input.status}`,
                 workItemId,
                 userId,
                 metadata: {
@@ -594,21 +595,21 @@ export async function deleteWorkItem(workItemId, userId) {
         throw new Error('WORK_ITEM_ACCESS_DENIED');
     }
     return prisma.$transaction(async (tx) => {
-        const workItem = await tx.workItem.findFirst({
+        const workItem = await tx.workItem.findUnique({
             where: {
                 id: workItemId,
-                deletedAt: null,
             },
             select: {
                 id: true,
                 title: true,
                 version: true,
+                deletedAt: true,
             },
         });
-        if (!workItem) {
+        if (!workItem || workItem.deletedAt) {
             throw new Error('WORK_ITEM_NOT_FOUND');
         }
-        const deleteResult = await tx.workItem.updateMany({
+        const result = await tx.workItem.updateMany({
             where: {
                 id: workItemId,
                 deletedAt: null,
@@ -621,7 +622,15 @@ export async function deleteWorkItem(workItemId, userId) {
                 },
             },
         });
-        if (deleteResult.count === 0) {
+        if (result.count === 0) {
+            throw new Error('WORK_ITEM_NOT_FOUND');
+        }
+        const deletedItem = await tx.workItem.findUnique({
+            where: {
+                id: workItemId,
+            },
+        });
+        if (!deletedItem) {
             throw new Error('WORK_ITEM_NOT_FOUND');
         }
         await tx.activity.create({
@@ -631,16 +640,12 @@ export async function deleteWorkItem(workItemId, userId) {
                 workItemId,
                 userId,
                 metadata: {
-                    deletedById: userId,
                     previousVersion: workItem.version,
-                    newVersion: workItem.version + 1,
+                    deletedVersion: deletedItem.version,
                 },
             },
         });
-        return {
-            id: workItem.id,
-            deletedAt: new Date(),
-        };
+        return deletedItem;
     });
 }
 //# sourceMappingURL=work-item.service.js.map

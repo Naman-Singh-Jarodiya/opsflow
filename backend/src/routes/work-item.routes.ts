@@ -38,7 +38,10 @@ router.post(
   changeWorkItemStatusController,
 )
 
-router.patch('/:id', updateWorkItemController)
+router.patch(
+  '/:id',
+  updateWorkItemController,
+)
 
 router.delete(
   '/:id',
