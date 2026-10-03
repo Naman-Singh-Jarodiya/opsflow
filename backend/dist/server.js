@@ -3,6 +3,7 @@ import cors from 'cors';
 import express from 'express';
 import prisma from './config/prisma.js';
 import authRoutes from './routes/auth.routes.js';
+import dashboardRoutes from './routes/dashboard.routes.js';
 import teamRoutes from './routes/team.routes.js';
 import workItemRoutes from './routes/work-item.routes.js';
 const app = express();
@@ -32,6 +33,7 @@ app.get('/api/health', async (_req, res) => {
     }
 });
 app.use('/api/auth', authRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/work-items', workItemRoutes);
 app.use((_req, res) => {

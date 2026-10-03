@@ -5,12 +5,14 @@ import express from 'express'
 
 import prisma from './config/prisma.js'
 import authRoutes from './routes/auth.routes.js'
+import dashboardRoutes from './routes/dashboard.routes.js'
 import teamRoutes from './routes/team.routes.js'
 import workItemRoutes from './routes/work-item.routes.js'
 
 const app = express()
 
-const PORT = Number(process.env.PORT) || 4000
+const PORT =
+  Number(process.env.PORT) || 4000
 
 app.use(
   cors({
@@ -34,7 +36,8 @@ app.get('/api/health', async (_req, res) => {
   } catch {
     res.status(503).json({
       success: false,
-      message: 'OpsFlow API is running but database is unavailable',
+      message:
+        'OpsFlow API is running but database is unavailable',
       database: 'disconnected',
       timestamp: new Date().toISOString(),
     })
@@ -42,6 +45,7 @@ app.get('/api/health', async (_req, res) => {
 })
 
 app.use('/api/auth', authRoutes)
+app.use('/api/dashboard', dashboardRoutes)
 app.use('/api/teams', teamRoutes)
 app.use('/api/work-items', workItemRoutes)
 
@@ -52,12 +56,19 @@ app.use((_req, res) => {
   })
 })
 
-const server = app.listen(PORT, () => {
-  console.log(`OpsFlow API running on http://localhost:${PORT}`)
-})
+const server = app.listen(
+  PORT,
+  () => {
+    console.log(
+      `OpsFlow API running on http://localhost:${PORT}`,
+    )
+  },
+)
 
 const shutdown = async () => {
-  console.log('Shutting down OpsFlow API...')
+  console.log(
+    'Shutting down OpsFlow API...',
+  )
 
   await prisma.$disconnect()
 
@@ -66,5 +77,12 @@ const shutdown = async () => {
   })
 }
 
-process.on('SIGINT', shutdown)
-process.on('SIGTERM', shutdown)
+process.on(
+  'SIGINT',
+  shutdown,
+)
+
+process.on(
+  'SIGTERM',
+  shutdown,
+)

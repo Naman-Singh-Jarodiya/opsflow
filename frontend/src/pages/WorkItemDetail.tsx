@@ -1,390 +1,864 @@
-import { useState } from 'react'
-import type { FormEvent } from 'react'
-import { Link, useParams } from 'react-router-dom'
 import {
+  AlertCircle,
   ArrowLeft,
   CalendarDays,
-  CheckCircle2,
+  Check,
   Clock3,
-  MessageSquare,
+  History,
+  Loader2,
+  Lock,
+  Pencil,
+  RefreshCw,
+  ShieldAlert,
+  Trash2,
   UserRound,
+  X,
+  Zap,
 } from 'lucide-react'
+import {
+  useEffect,
+  useState,
+} from 'react'
+import {
+  useMutation,
+  useQuery,
+  useQueryClient,
+} from '@tanstack/react-query'
+import {
+  Link,
+  useNavigate,
+  useParams,
+} from 'react-router-dom'
 
-type Status = 'Open' | 'In Progress' | 'Blocked' | 'Resolved' | 'Closed'
-type Priority = 'Low' | 'Medium' | 'High' | 'Urgent'
+import {
+  changeWorkItemStatus,
+  deleteWorkItem,
+  getWorkItem,
+  updateWorkItem,
+  type WorkItemPriority,
+  type WorkItemStatus,
+} from '../lib/api'
 
-type Activity = {
-  id: number
-  text: string
-  time: string
-  type: 'system' | 'user'
-}
-
-const transitions: Record<Status, Status[]> = {
-  Open: ['In Progress', 'Blocked'],
-  'In Progress': ['Blocked', 'Resolved'],
-  Blocked: ['In Progress'],
-  Resolved: ['Closed'],
-  Closed: [],
-}
-
-const assignees = [
-  'Rahul Kumar',
-  'Ananya Sharma',
-  'Manisha Pandey',
-  'Vivek Singh',
+const statusOptions: WorkItemStatus[] = [
+  'OPEN',
+  'IN_PROGRESS',
+  'BLOCKED',
+  'RESOLVED',
+  'CLOSED',
 ]
 
-export default function WorkItemDetail() {
-  const { id } = useParams()
+const priorityOptions: WorkItemPriority[] = [
+  'LOW',
+  'MEDIUM',
+  'HIGH',
+  'URGENT',
+]
 
-  const [status, setStatus] = useState<Status>('In Progress')
-  const [priority, setPriority] = useState<Priority>('Urgent')
-  const [assignee, setAssignee] = useState('Rahul Kumar')
-  const [comment, setComment] = useState('')
+function formatDate(
+  value: string | null | undefined,
+) {
+  if (!value) return 'Not set'
 
-  const [activities, setActivities] = useState<Activity[]>([
+  return new Intl.DateTimeFormat(
+    'en-IN',
     {
-      id: 1,
-      text: 'Rahul Kumar assigned this work item to himself',
-      time: '10 minutes ago',
-      type: 'user',
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
     },
-    {
-      id: 2,
-      text: 'Status changed from Open to In Progress',
-      time: '18 minutes ago',
-      type: 'system',
+  ).format(new Date(value))
+}
+
+function initials(name?: string) {
+  if (!name) return '?'
+
+  return name
+    .split(' ')
+    .map((part) => part[0])
+    .join('')
+    .slice(0, 2)
+    .toUpperCase()
+}
+
+function statusStyle(
+  status: WorkItemStatus,
+) {
+  switch (status) {
+    case 'OPEN':
+      return 'border-sky-400/20 bg-sky-400/10 text-sky-300'
+    case 'IN_PROGRESS':
+      return 'border-violet-400/20 bg-violet-400/10 text-violet-300'
+    case 'BLOCKED':
+      return 'border-rose-400/20 bg-rose-400/10 text-rose-300'
+    case 'RESOLVED':
+      return 'border-emerald-400/20 bg-emerald-400/10 text-emerald-300'
+    default:
+      return 'border-zinc-700 bg-zinc-800/70 text-zinc-300'
+  }
+}
+
+function priorityStyle(
+  priority: WorkItemPriority,
+) {
+  switch (priority) {
+    case 'URGENT':
+      return 'border-red-400/20 bg-red-400/10 text-red-300'
+    case 'HIGH':
+      return 'border-orange-400/20 bg-orange-400/10 text-orange-300'
+    case 'MEDIUM':
+      return 'border-yellow-400/20 bg-yellow-400/10 text-yellow-300'
+    default:
+      return 'border-zinc-700 bg-zinc-800/70 text-zinc-400'
+  }
+}
+
+function activityLabel(type: string) {
+  switch (type) {
+    case 'CREATED':
+      return 'created this work item'
+    case 'UPDATED':
+      return 'updated the work item'
+    case 'ASSIGNED':
+      return 'changed ownership'
+    case 'STATUS_CHANGED':
+      return 'changed the workflow status'
+    case 'COMMENTED':
+      return 'added a comment'
+    case 'DELETED':
+      return 'deleted the work item'
+    default:
+      return 'changed the work item'
+  }
+}
+
+function WorkItemDetail() {
+  const { id } = useParams<{
+    id: string
+  }>()
+
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
+
+  const [editing, setEditing] =
+    useState(false)
+
+  const [title, setTitle] = useState('')
+  const [description, setDescription] =
+    useState('')
+  const [priority, setPriority] =
+    useState<WorkItemPriority>('MEDIUM')
+  const [dueDate, setDueDate] =
+    useState('')
+
+  const [selectedStatus, setSelectedStatus] =
+    useState<WorkItemStatus>('OPEN')
+
+  const [actionError, setActionError] =
+    useState('')
+
+  const [showDeleteConfirm, setShowDeleteConfirm] =
+    useState(false)
+
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['work-item', id],
+    queryFn: () => getWorkItem(id!),
+    enabled: Boolean(id),
+  })
+
+  const item = data?.workItem
+
+  useEffect(() => {
+    if (!item) return
+
+    setTitle(item.title)
+    setDescription(
+      item.description ?? '',
+    )
+    setPriority(item.priority)
+    setDueDate(
+      item.dueDate
+        ? item.dueDate.slice(0, 10)
+        : '',
+    )
+    setSelectedStatus(item.status)
+  }, [item])
+
+  const updateMutation = useMutation({
+    mutationFn: () =>
+      updateWorkItem(item!.id, {
+        title: title.trim(),
+        description:
+          description.trim(),
+        priority,
+        dueDate:
+          dueDate || null,
+        version: item!.version,
+      }),
+    onSuccess: async () => {
+      setEditing(false)
+      setActionError('')
+
+      await queryClient.invalidateQueries({
+        queryKey: ['work-item', id],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ['work-items'],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ['dashboard'],
+      })
     },
-    {
-      id: 3,
-      text: 'Priority changed from High to Urgent',
-      time: '25 minutes ago',
-      type: 'system',
+    onError: (mutationError) => {
+      setActionError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : 'Unable to update this work item.',
+      )
     },
-    {
-      id: 4,
-      text: 'Work item created',
-      time: '32 minutes ago',
-      type: 'system',
+  })
+
+  const statusMutation = useMutation({
+    mutationFn: () =>
+      changeWorkItemStatus(
+        item!.id,
+        selectedStatus,
+        item!.version,
+      ),
+    onSuccess: async () => {
+      setActionError('')
+
+      await queryClient.invalidateQueries({
+        queryKey: ['work-item', id],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ['work-items'],
+      })
+
+      await queryClient.invalidateQueries({
+        queryKey: ['dashboard'],
+      })
     },
-  ])
+    onError: (mutationError) => {
+      setActionError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : 'Unable to change status.',
+      )
 
-  const addActivity = (text: string) => {
-    setActivities((current) => [
-      {
-        id: Date.now(),
-        text,
-        time: 'Just now',
-        type: 'system',
-      },
-      ...current,
-    ])
-  }
+      setSelectedStatus(
+        item?.status ?? 'OPEN',
+      )
+    },
+  })
 
-  const handleStatusChange = (nextStatus: Status) => {
-    if (nextStatus === status) return
+  const deleteMutation = useMutation({
+    mutationFn: () =>
+      deleteWorkItem(item!.id),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({
+        queryKey: ['work-items'],
+      })
 
-    if (!transitions[status].includes(nextStatus)) {
-      return
-    }
+      await queryClient.invalidateQueries({
+        queryKey: ['dashboard'],
+      })
 
-    const previous = status
-    setStatus(nextStatus)
-    addActivity(`Status changed from ${previous} to ${nextStatus}`)
-  }
+      navigate('/work-items')
+    },
+    onError: (mutationError) => {
+      setActionError(
+        mutationError instanceof Error
+          ? mutationError.message
+          : 'Unable to delete this work item.',
+      )
+      setShowDeleteConfirm(false)
+    },
+  })
 
-  const handlePriorityChange = (nextPriority: Priority) => {
-    if (nextPriority === priority) return
-
-    const previous = priority
-    setPriority(nextPriority)
-    addActivity(`Priority changed from ${previous} to ${nextPriority}`)
-  }
-
-  const handleAssigneeChange = (nextAssignee: string) => {
-    if (nextAssignee === assignee) return
-
-    const previous = assignee
-    setAssignee(nextAssignee)
-    addActivity(`Assignee changed from ${previous} to ${nextAssignee}`)
-  }
-
-  const handleComment = (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-
-    const value = comment.trim()
-
-    if (!value) return
-
-    setActivities((current) => [
-      {
-        id: Date.now(),
-        text: `You commented: "${value}"`,
-        time: 'Just now',
-        type: 'user',
-      },
-      ...current,
-    ])
-
-    setComment('')
-  }
-
-  const statusColor: Record<Status, string> = {
-    Open: 'bg-zinc-800 text-zinc-300',
-    'In Progress': 'bg-blue-500/10 text-blue-400 border border-blue-500/20',
-    Blocked: 'bg-red-500/10 text-red-400 border border-red-500/20',
-    Resolved: 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20',
-    Closed: 'bg-zinc-800 text-zinc-500',
-  }
-
-  const priorityColor: Record<Priority, string> = {
-    Low: 'text-zinc-400',
-    Medium: 'text-blue-400',
-    High: 'text-violet-400',
-    Urgent: 'text-red-400',
-  }
-
-  return (
-    <div className="mx-auto max-w-7xl p-6 lg:p-8">
-      <div className="mb-6">
-        <Link
-          to="/work-items"
-          className="mb-5 inline-flex items-center gap-2 text-sm text-zinc-500 transition hover:text-white"
-        >
-          <ArrowLeft className="h-4 w-4" />
-          Back to Work Items
-        </Link>
-
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-start">
-          <div>
-            <div className="mb-3 flex items-center gap-3">
-              <span className="text-xs font-medium text-zinc-500">#{id ?? '1042'}</span>
-
-              <span className={`rounded-md px-2.5 py-1 text-xs font-medium ${statusColor[status]}`}>
-                {status}
-              </span>
-
-              <span className={`text-xs font-semibold ${priorityColor[priority]}`}>
-                {priority} priority
-              </span>
-            </div>
-
-            <h1 className="text-2xl font-semibold tracking-tight text-white lg:text-3xl">
-              Payment gateway timeout investigation
-            </h1>
-
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Investigate intermittent payment gateway timeouts affecting customer checkout
-              requests and determine the root cause.
-            </p>
-          </div>
-
-          <button
-            onClick={() => {
-              const next = status === 'Closed' ? 'Open' : 'Closed'
-              if (next === 'Closed' && status !== 'Resolved') {
-                handleStatusChange('Resolved')
-              } else {
-                handleStatusChange(next)
-              }
-            }}
-            className="rounded-lg border border-zinc-700 bg-zinc-900 px-4 py-2.5 text-sm font-medium text-zinc-200 transition hover:border-zinc-600 hover:bg-zinc-800"
-          >
-            {status === 'Closed' ? 'Reopen' : 'Update status'}
-          </button>
+  if (isLoading) {
+    return (
+      <div className="flex min-h-full items-center justify-center bg-[#09090b] text-zinc-500">
+        <div className="flex items-center gap-3 text-sm">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          Loading work item...
         </div>
       </div>
+    )
+  }
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="space-y-6">
-          <section className="rounded-xl border border-zinc-800/80 bg-[#0d0d10]">
-            <div className="border-b border-zinc-800/80 px-5 py-4">
-              <h2 className="text-sm font-semibold text-white">Work details</h2>
+  if (isError || !item) {
+    return (
+      <div className="flex min-h-full flex-col items-center justify-center bg-[#09090b] px-6 text-center text-white">
+        <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl border border-rose-400/20 bg-rose-400/10">
+          <AlertCircle className="h-5 w-5 text-rose-300" />
+        </div>
+
+        <h1 className="text-lg font-semibold">
+          Work item unavailable
+        </h1>
+
+        <p className="mt-2 max-w-md text-sm text-zinc-500">
+          {error instanceof Error
+            ? error.message
+            : 'The work item may have been deleted or you may not have access to it.'}
+        </p>
+
+        <div className="mt-5 flex gap-2">
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="inline-flex h-9 items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-zinc-300 hover:bg-white/[0.07]"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Retry
+          </button>
+
+          <Link
+            to="/work-items"
+            className="inline-flex h-9 items-center rounded-lg bg-white px-4 text-sm font-medium text-zinc-950 hover:bg-zinc-200"
+          >
+            Back to work
+          </Link>
+        </div>
+      </div>
+    )
+  }
+
+  const hasStatusChange =
+    selectedStatus !== item.status
+
+  const activities =
+    item.activities ?? []
+
+  return (
+    <div className="min-h-full bg-[#09090b] px-5 py-6 text-white sm:px-8 sm:py-8">
+      <div className="mx-auto max-w-[1400px]">
+        <div className="mb-6 flex items-center justify-between gap-4">
+          <Link
+            to="/work-items"
+            className="inline-flex items-center gap-2 text-sm text-zinc-500 hover:text-white"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            All work items
+          </Link>
+
+          <div className="flex items-center gap-2 text-xs text-zinc-600">
+            <Lock className="h-3.5 w-3.5" />
+            Version {item.version}
+          </div>
+        </div>
+
+        {actionError && (
+          <div className="mb-5 flex items-start justify-between gap-4 rounded-xl border border-amber-400/20 bg-amber-400/[0.05] px-4 py-3">
+            <div className="flex items-start gap-3">
+              <ShieldAlert className="mt-0.5 h-4 w-4 text-amber-300" />
+              <div>
+                <p className="text-sm font-medium text-amber-200">
+                  Update could not be applied
+                </p>
+                <p className="mt-1 text-xs leading-5 text-amber-200/60">
+                  {actionError}
+                </p>
+              </div>
             </div>
 
-            <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <div>
-                <p className="mb-2 text-xs text-zinc-500">Status</p>
-                <select
-                  value={status}
-                  onChange={(e) => handleStatusChange(e.target.value as Status)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-200 outline-none transition focus:border-zinc-600"
+            <button
+              type="button"
+              onClick={() =>
+                setActionError('')
+              }
+              className="text-zinc-600 hover:text-white"
+              aria-label="Dismiss error"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        )}
+
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_350px]">
+          <main className="space-y-5">
+            <section className="rounded-2xl border border-white/[0.07] bg-[#101012] p-6 shadow-2xl shadow-black/20 sm:p-8">
+              <div className="mb-6 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1 text-xs font-medium ${statusStyle(item.status)}`}
                 >
-                  {(['Open', 'In Progress', 'Blocked', 'Resolved', 'Closed'] as Status[]).map(
-                    (item) => (
+                  {item.status.replace(
+                    '_',
+                    ' ',
+                  )}
+                </span>
+
+                <span
+                  className={`rounded-md border px-2.5 py-1 text-xs font-medium ${priorityStyle(item.priority)}`}
+                >
+                  {item.priority}
+                </span>
+
+                <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2.5 py-1 text-xs text-zinc-500">
+                  {item.team.name}
+                </span>
+              </div>
+
+              {editing ? (
+                <input
+                  value={title}
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value,
+                    )
+                  }
+                  maxLength={200}
+                  className="w-full rounded-lg border border-white/10 bg-[#0b0b0d] px-4 py-3 text-xl font-semibold text-white outline-none focus:border-white/20"
+                />
+              ) : (
+                <h1 className="text-2xl font-semibold leading-tight tracking-tight sm:text-3xl">
+                  {item.title}
+                </h1>
+              )}
+
+              <div className="mt-7">
+                <div className="mb-2 flex items-center justify-between">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                    Description
+                  </p>
+
+                  {!editing && (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setEditing(true)
+                      }
+                      className="inline-flex items-center gap-1.5 text-xs text-zinc-500 hover:text-white"
+                    >
+                      <Pencil className="h-3.5 w-3.5" />
+                      Edit
+                    </button>
+                  )}
+                </div>
+
+                {editing ? (
+                  <textarea
+                    value={description}
+                    onChange={(event) =>
+                      setDescription(
+                        event.target.value,
+                      )
+                    }
+                    rows={7}
+                    className="w-full resize-none rounded-lg border border-white/10 bg-[#0b0b0d] px-4 py-3 text-sm leading-6 text-zinc-300 outline-none focus:border-white/20"
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap text-sm leading-7 text-zinc-400">
+                    {item.description ||
+                      'No description provided.'}
+                  </p>
+                )}
+              </div>
+
+              {editing && (
+                <div className="mt-6 grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <label className="mb-2 block text-xs text-zinc-600">
+                      Priority
+                    </label>
+
+                    <select
+                      value={priority}
+                      onChange={(event) =>
+                        setPriority(
+                          event.target
+                            .value as WorkItemPriority,
+                        )
+                      }
+                      className="h-10 w-full rounded-lg border border-white/10 bg-[#0b0b0d] px-3 text-sm text-zinc-300 outline-none"
+                    >
+                      {priorityOptions.map(
+                        (value) => (
+                          <option
+                            key={value}
+                            value={value}
+                          >
+                            {value}
+                          </option>
+                        ),
+                      )}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs text-zinc-600">
+                      Due date
+                    </label>
+
+                    <input
+                      type="date"
+                      value={dueDate}
+                      onChange={(event) =>
+                        setDueDate(
+                          event.target.value,
+                        )
+                      }
+                      className="h-10 w-full rounded-lg border border-white/10 bg-[#0b0b0d] px-3 text-sm text-zinc-300 outline-none"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {editing && (
+                <div className="mt-6 flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditing(false)
+                      setTitle(item.title)
+                      setDescription(
+                        item.description ??
+                          '',
+                      )
+                      setPriority(
+                        item.priority,
+                      )
+                      setDueDate(
+                        item.dueDate
+                          ? item.dueDate.slice(
+                              0,
+                              10,
+                            )
+                          : '',
+                      )
+                    }}
+                    className="h-9 rounded-lg border border-white/10 px-4 text-sm text-zinc-400 hover:text-white"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={
+                      updateMutation.isPending ||
+                      !title.trim()
+                    }
+                    onClick={() =>
+                      updateMutation.mutate()
+                    }
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-white px-4 text-sm font-semibold text-zinc-950 disabled:opacity-50"
+                  >
+                    {updateMutation.isPending && (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                    )}
+                    Save changes
+                  </button>
+                </div>
+              )}
+            </section>
+
+            <section className="rounded-2xl border border-white/[0.07] bg-[#101012] p-6 sm:p-8">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                    Workflow
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold">
+                    Move this work forward
+                  </h2>
+                </div>
+
+                <Zap className="h-5 w-5 text-zinc-700" />
+              </div>
+
+              <div className="mt-5 flex flex-col gap-3 sm:flex-row">
+                <select
+                  value={selectedStatus}
+                  onChange={(event) =>
+                    setSelectedStatus(
+                      event.target
+                        .value as WorkItemStatus,
+                    )
+                  }
+                  className="h-10 flex-1 rounded-lg border border-white/10 bg-[#0b0b0d] px-3 text-sm text-zinc-300 outline-none"
+                >
+                  {statusOptions.map(
+                    (status) => (
                       <option
-                        key={item}
-                        value={item}
-                        disabled={item !== status && !transitions[status].includes(item)}
+                        key={status}
+                        value={status}
                       >
-                        {item}
+                        {status.replace(
+                          '_',
+                          ' ',
+                        )}
                       </option>
                     ),
                   )}
                 </select>
-              </div>
 
-              <div>
-                <p className="mb-2 text-xs text-zinc-500">Priority</p>
-                <select
-                  value={priority}
-                  onChange={(e) => handlePriorityChange(e.target.value as Priority)}
-                  className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-200 outline-none transition focus:border-zinc-600"
-                >
-                  {(['Low', 'Medium', 'High', 'Urgent'] as Priority[]).map((item) => (
-                    <option key={item} value={item}>
-                      {item}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs text-zinc-500">Team</p>
-                <div className="rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-300">
-                  Payments
-                </div>
-              </div>
-
-              <div>
-                <p className="mb-2 text-xs text-zinc-500">Created</p>
-                <div className="flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-300">
-                  <CalendarDays className="h-4 w-4 text-zinc-500" />
-                  October 3, 2026
-                </div>
-              </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-zinc-800/80 bg-[#0d0d10]">
-            <div className="flex items-center justify-between border-b border-zinc-800/80 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <MessageSquare className="h-4 w-4 text-zinc-500" />
-                <h2 className="text-sm font-semibold text-white">Activity</h2>
-              </div>
-
-              <span className="text-xs text-zinc-600">
-                {activities.length} events
-              </span>
-            </div>
-
-            <div className="divide-y divide-zinc-800/70">
-              {activities.map((item) => (
-                <div key={item.id} className="flex gap-4 px-5 py-4">
-                  <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-zinc-800 bg-zinc-900">
-                    {item.type === 'user' ? (
-                      <UserRound className="h-3.5 w-3.5 text-zinc-400" />
-                    ) : (
-                      <CheckCircle2 className="h-3.5 w-3.5 text-zinc-500" />
-                    )}
-                  </div>
-
-                  <div className="min-w-0">
-                    <p className="text-sm leading-6 text-zinc-300">{item.text}</p>
-                    <div className="mt-1 flex items-center gap-1.5 text-xs text-zinc-600">
-                      <Clock3 className="h-3 w-3" />
-                      {item.time}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <form onSubmit={handleComment} className="border-t border-zinc-800/80 p-5">
-              <textarea
-                value={comment}
-                onChange={(e) => setComment(e.target.value)}
-                placeholder="Add a comment..."
-                rows={3}
-                className="w-full resize-none rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-3 text-sm text-zinc-200 outline-none placeholder:text-zinc-600 focus:border-zinc-600"
-              />
-
-              <div className="mt-3 flex justify-end">
                 <button
-                  type="submit"
-                  disabled={!comment.trim()}
-                  className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-black transition hover:bg-zinc-200 disabled:cursor-not-allowed disabled:opacity-40"
+                  type="button"
+                  disabled={
+                    !hasStatusChange ||
+                    statusMutation.isPending
+                  }
+                  onClick={() =>
+                    statusMutation.mutate()
+                  }
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-semibold text-zinc-950 disabled:pointer-events-none disabled:opacity-40"
                 >
-                  Add comment
+                  {statusMutation.isPending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="h-4 w-4" />
+                  )}
+                  Apply status
                 </button>
               </div>
-            </form>
-          </section>
-        </div>
 
-        <aside className="space-y-6">
-          <section className="rounded-xl border border-zinc-800/80 bg-[#0d0d10] p-5">
-            <h2 className="text-sm font-semibold text-white">Assignment</h2>
+              <p className="mt-3 text-xs leading-5 text-zinc-600">
+                Invalid workflow transitions
+                are rejected by the server.
+                This prevents inconsistent state
+                even if multiple users act at
+                once.
+              </p>
+            </section>
 
-            <div className="mt-4">
-              <label className="mb-2 block text-xs text-zinc-500">Assignee</label>
+            <section className="rounded-2xl border border-white/[0.07] bg-[#101012] p-6 sm:p-8">
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-white/[0.04]">
+                  <History className="h-4 w-4 text-zinc-400" />
+                </div>
 
-              <select
-                value={assignee}
-                onChange={(e) => handleAssigneeChange(e.target.value)}
-                className="w-full rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-sm text-zinc-200 outline-none transition focus:border-zinc-600"
-              >
-                {assignees.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div className="mt-5 flex items-center gap-3 border-t border-zinc-800/80 pt-5">
-              <div className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-800 text-xs font-semibold">
-                {assignee
-                  .split(' ')
-                  .map((word) => word[0])
-                  .join('')
-                  .slice(0, 2)}
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                    Audit trail
+                  </p>
+                  <h2 className="mt-1 text-base font-semibold">
+                    Activity history
+                  </h2>
+                </div>
               </div>
 
-              <div>
-                <p className="text-sm font-medium text-zinc-200">{assignee}</p>
-                <p className="text-xs text-zinc-600">Payments team</p>
-              </div>
-            </div>
-          </section>
+              {activities.length === 0 ? (
+                <div className="mt-7 rounded-xl border border-dashed border-white/[0.08] p-7 text-center">
+                  <Clock3 className="mx-auto h-5 w-5 text-zinc-700" />
+                  <p className="mt-3 text-sm text-zinc-600">
+                    No activity recorded yet.
+                  </p>
+                </div>
+              ) : (
+                <div className="mt-7 space-y-6">
+                  {activities.map(
+                    (activity) => (
+                      <div
+                        key={activity.id}
+                        className="relative flex gap-3"
+                      >
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/[0.07] bg-white/[0.035] text-[10px] font-semibold text-zinc-400">
+                          {initials(
+                            activity.user
+                              ?.name,
+                          )}
+                        </div>
 
-          <section className="rounded-xl border border-zinc-800/80 bg-[#0d0d10] p-5">
-            <h2 className="text-sm font-semibold text-white">Workflow</h2>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-zinc-400">
+                            <span className="font-medium text-zinc-200">
+                              {activity.user
+                                ?.name ??
+                                'System'}
+                            </span>{' '}
+                            {activityLabel(
+                              activity.type,
+                            )}
+                          </p>
 
-            <div className="mt-4 space-y-2">
-              {(['Open', 'In Progress', 'Blocked', 'Resolved', 'Closed'] as Status[]).map(
-                (item) => {
-                  const active = item === status
-                  const allowed = item === status || transitions[status].includes(item)
-
-                  return (
-                    <button
-                      key={item}
-                      disabled={!allowed}
-                      onClick={() => handleStatusChange(item)}
-                      className={`flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm transition ${
-                        active
-                          ? 'bg-zinc-800 text-white'
-                          : allowed
-                            ? 'text-zinc-500 hover:bg-zinc-900 hover:text-zinc-200'
-                            : 'cursor-not-allowed text-zinc-700'
-                      }`}
-                    >
-                      <span
-                        className={`h-2 w-2 rounded-full ${
-                          active ? 'bg-white' : 'bg-zinc-700'
-                        }`}
-                      />
-                      {item}
-                    </button>
-                  )
-                },
+                          <p className="mt-1 text-xs text-zinc-700">
+                            {formatDate(
+                              activity.createdAt,
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    ),
+                  )}
+                </div>
               )}
-            </div>
-          </section>
-        </aside>
+            </section>
+          </main>
+
+          <aside className="space-y-5">
+            <section className="rounded-2xl border border-white/[0.07] bg-[#101012] p-5">
+              <div className="mb-5 flex items-center justify-between">
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                  Ownership
+                </p>
+
+                <UserRound className="h-4 w-4 text-zinc-700" />
+              </div>
+
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-white/[0.07] text-xs font-semibold text-zinc-300">
+                  {initials(
+                    item.assignee?.name,
+                  )}
+                </div>
+
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-zinc-200">
+                    {item.assignee?.name ??
+                      'Unassigned'}
+                  </p>
+
+                  <p className="truncate text-xs text-zinc-600">
+                    {item.assignee?.email ??
+                      'No owner assigned'}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-white/[0.07] bg-[#101012] p-5">
+              <p className="mb-5 text-xs font-semibold uppercase tracking-wider text-zinc-600">
+                Details
+              </p>
+
+              <div className="space-y-5">
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-700">
+                    Team
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    {item.team.name}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-700">
+                    Created by
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-300">
+                    {item.createdBy?.name ??
+                      'Unknown'}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-700">
+                    Created
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {formatDate(
+                      item.createdAt,
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-700">
+                    Last updated
+                  </p>
+                  <p className="mt-1 text-sm text-zinc-400">
+                    {formatDate(
+                      item.updatedAt,
+                    )}
+                  </p>
+                </div>
+
+                <div>
+                  <p className="text-[10px] uppercase tracking-wider text-zinc-700">
+                    Due date
+                  </p>
+
+                  <p className="mt-1 flex items-center gap-2 text-sm text-zinc-400">
+                    <CalendarDays className="h-3.5 w-3.5 text-zinc-600" />
+                    {item.dueDate
+                      ? formatDate(
+                          item.dueDate,
+                        )
+                      : 'No due date'}
+                  </p>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-2xl border border-red-400/10 bg-red-400/[0.025] p-5">
+              <p className="text-xs font-semibold uppercase tracking-wider text-red-300/50">
+                Danger zone
+              </p>
+
+              <p className="mt-2 text-xs leading-5 text-zinc-600">
+                Deleting a work item is a
+                soft-delete operation. Its activity
+                history remains available to the
+                system.
+              </p>
+
+              {!showDeleteConfirm ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setShowDeleteConfirm(
+                      true,
+                    )
+                  }
+                  className="mt-4 inline-flex h-9 items-center gap-2 rounded-lg border border-red-400/15 px-3 text-xs font-medium text-red-300/80 hover:bg-red-400/[0.06] hover:text-red-200"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                  Delete work item
+                </button>
+              ) : (
+                <div className="mt-4">
+                  <p className="text-xs font-medium text-red-200">
+                    Delete this work item?
+                  </p>
+
+                  <div className="mt-3 flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setShowDeleteConfirm(
+                          false,
+                        )
+                      }
+                      className="h-8 rounded-md border border-white/10 px-3 text-xs text-zinc-500 hover:text-white"
+                    >
+                      Cancel
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={
+                        deleteMutation.isPending
+                      }
+                      onClick={() =>
+                        deleteMutation.mutate()
+                      }
+                      className="inline-flex h-8 items-center gap-2 rounded-md bg-red-500/10 px-3 text-xs font-medium text-red-300 hover:bg-red-500/15 disabled:opacity-50"
+                    >
+                      {deleteMutation.isPending && (
+                        <Loader2 className="h-3 w-3 animate-spin" />
+                      )}
+                      Confirm delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </section>
+          </aside>
+        </div>
       </div>
     </div>
   )
 }
+
+export default WorkItemDetail

@@ -4,8 +4,10 @@
   font-family:
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", sans-serif;
+
   color: #ffffff;
   background: #09090b;
+
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -24,6 +26,24 @@ body {
   min-width: 320px;
   min-height: 100vh;
   background: #09090b;
+  overflow-x: hidden;
+
+  --opsflow-pink-soft: rgba(244, 114, 182, 0.055);
+  --opsflow-pink: rgba(236, 72, 153, 0.105);
+  --opsflow-pink-strong: rgba(219, 39, 119, 0.17);
+
+  --opsflow-pink-card: rgba(190, 24, 93, 0.075);
+  --opsflow-pink-card-strong: rgba(190, 24, 93, 0.13);
+
+  --opsflow-pink-border: rgba(244, 114, 182, 0.22);
+  --opsflow-pink-border-strong: rgba(244, 114, 182, 0.36);
+
+  --opsflow-violet-soft: rgba(167, 139, 250, 0.065);
+  --opsflow-violet: rgba(139, 92, 246, 0.12);
+  --opsflow-violet-strong: rgba(124, 58, 237, 0.18);
+
+  --opsflow-violet-card: rgba(109, 40, 217, 0.085);
+  --opsflow-violet-border: rgba(167, 139, 250, 0.24);
 }
 
 button,
@@ -41,6 +61,99 @@ button {
   box-sizing: border-box;
 }
 
+/* --------------------------------------------------
+   Base page atmosphere
+-------------------------------------------------- */
+
+body {
+  position: relative;
+  isolation: isolate;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+
+  background:
+    radial-gradient(
+      circle at 8% 8%,
+      var(--opsflow-pink-strong),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 92% 18%,
+      var(--opsflow-pink),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 52% 105%,
+      var(--opsflow-pink-soft),
+      transparent 43%
+    );
+
+  transition:
+    background 240ms ease,
+    opacity 240ms ease;
+}
+
+/* Soft pink glow around the application */
+
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+
+  border: 1px solid rgba(236, 72, 153, 0.08);
+
+  box-shadow:
+    inset 0 0 100px rgba(236, 72, 153, 0.025),
+    0 0 60px rgba(236, 72, 153, 0.018);
+
+  transition:
+    border-color 240ms ease,
+    box-shadow 240ms ease;
+}
+
+/* --------------------------------------------------
+   API loading = violet atmosphere
+-------------------------------------------------- */
+
+body.opsflow-api-loading::before {
+  background:
+    radial-gradient(
+      circle at 8% 8%,
+      var(--opsflow-violet-strong),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 92% 18%,
+      var(--opsflow-violet),
+      transparent 31%
+    ),
+    radial-gradient(
+      circle at 52% 105%,
+      var(--opsflow-violet-soft),
+      transparent 43%
+    );
+}
+
+body.opsflow-api-loading::after {
+  border-color: var(--opsflow-violet-border);
+
+  box-shadow:
+    inset 0 0 100px rgba(139, 92, 246, 0.05),
+    0 0 60px rgba(139, 92, 246, 0.035);
+}
+
+/* --------------------------------------------------
+   Scrollbars
+-------------------------------------------------- */
+
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -51,10 +164,464 @@ button {
 }
 
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(244, 114, 182, 0.18);
   border-radius: 999px;
 }
 
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.2);
+  background: rgba(244, 114, 182, 0.34);
+}
+
+/* --------------------------------------------------
+   Shared page atmosphere
+-------------------------------------------------- */
+
+.opsflow-page {
+  position: relative;
+  background:
+    radial-gradient(
+      circle at 15% 5%,
+      rgba(236, 72, 153, 0.075),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 90% 15%,
+      rgba(219, 39, 119, 0.055),
+      transparent 30%
+    ),
+    rgba(9, 9, 11, 0.72);
+}
+
+body.opsflow-api-loading .opsflow-page {
+  background:
+    radial-gradient(
+      circle at 15% 5%,
+      rgba(139, 92, 246, 0.09),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 90% 15%,
+      rgba(124, 58, 237, 0.075),
+      transparent 30%
+    ),
+    rgba(9, 9, 11, 0.72);
+}
+
+/* --------------------------------------------------
+   Teams-style glass panels
+-------------------------------------------------- */
+
+.opsflow-panel {
+  border: 1px solid var(--opsflow-pink-border);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(190, 24, 93, 0.105),
+      rgba(24, 24, 27, 0.82)
+    );
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.035);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+
+  transition:
+    background 160ms ease,
+    border-color 160ms ease,
+    box-shadow 160ms ease,
+    filter 160ms ease;
+}
+
+.opsflow-panel:hover {
+  border-color: var(--opsflow-pink-border-strong);
+  background:
+    linear-gradient(
+      145deg,
+      rgba(190, 24, 93, 0.14),
+      rgba(24, 24, 27, 0.82)
+    );
+}
+
+/* --------------------------------------------------
+   Convert existing dark Tailwind surfaces to
+   Teams-style pink glass surfaces
+-------------------------------------------------- */
+
+.bg-\[\#09090b\] {
+  background:
+    radial-gradient(
+      circle at 12% 8%,
+      rgba(236, 72, 153, 0.055),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 88% 12%,
+      rgba(219, 39, 119, 0.04),
+      transparent 30%
+    ),
+    rgba(9, 9, 11, 0.78) !important;
+}
+
+.bg-\[\#101012\] {
+  background:
+    linear-gradient(
+      145deg,
+      rgba(190, 24, 93, 0.085),
+      rgba(16, 16, 18, 0.88)
+    ) !important;
+
+  border-color: var(--opsflow-pink-border) !important;
+
+  box-shadow:
+    0 18px 50px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.025);
+}
+
+.bg-\[\#0b0b0d\] {
+  background:
+    rgba(30, 10, 22, 0.88) !important;
+
+  border-color: rgba(244, 114, 182, 0.18) !important;
+}
+
+/* --------------------------------------------------
+   Existing white translucent surfaces
+-------------------------------------------------- */
+
+.bg-white\/\[0\.04\] {
+  background: rgba(236, 72, 153, 0.055) !important;
+}
+
+.bg-white\/\[0\.035\] {
+  background: rgba(236, 72, 153, 0.045) !important;
+}
+
+.bg-white\/\[0\.025\] {
+  background: rgba(236, 72, 153, 0.035) !important;
+}
+
+.bg-white\/\[0\.07\] {
+  background: rgba(236, 72, 153, 0.09) !important;
+}
+
+.bg-white\/\[0\.08\] {
+  background: rgba(236, 72, 153, 0.095) !important;
+}
+
+/* --------------------------------------------------
+   Existing white borders → pink borders
+-------------------------------------------------- */
+
+.border-white\/10,
+.border-white\/\[0\.07\],
+.border-white\/\[0\.08\] {
+  border-color: var(--opsflow-pink-border) !important;
+}
+
+.border-white\/\[0\.06\] {
+  border-color: rgba(244, 114, 182, 0.18) !important;
+}
+
+.border-white\/\[0\.05\] {
+  border-color: rgba(244, 114, 182, 0.16) !important;
+}
+
+/* --------------------------------------------------
+   Pink cards get stronger Teams-style hover
+-------------------------------------------------- */
+
+.border-pink-300\/40 {
+  border-color: rgba(244, 114, 182, 0.34) !important;
+}
+
+.bg-pink-950\/30 {
+  background: rgba(131, 24, 75, 0.18) !important;
+}
+
+.hover\:bg-pink-950\/30:hover {
+  background: rgba(131, 24, 75, 0.30) !important;
+}
+
+.hover\:border-pink-300\/40:hover {
+  border-color: rgba(244, 114, 182, 0.55) !important;
+}
+
+/* --------------------------------------------------
+   Buttons
+-------------------------------------------------- */
+
+button,
+a[role="button"] {
+  transition:
+    filter 150ms ease,
+    background-color 150ms ease,
+    border-color 150ms ease,
+    box-shadow 150ms ease,
+    color 150ms ease;
+}
+
+/* Existing white buttons become pink */
+
+.bg-white.text-zinc-950 {
+  background:
+    linear-gradient(
+      135deg,
+      rgb(236, 72, 153),
+      rgb(190, 24, 93)
+    ) !important;
+
+  color: white !important;
+
+  box-shadow:
+    0 8px 24px rgba(190, 24, 93, 0.24);
+}
+
+.bg-white.text-zinc-950:hover {
+  background:
+    linear-gradient(
+      135deg,
+      rgb(219, 39, 119),
+      rgb(157, 23, 77)
+    ) !important;
+
+  color: white !important;
+}
+
+/* --------------------------------------------------
+   Generic interactive hover
+-------------------------------------------------- */
+
+body button:hover,
+body a:hover,
+body [role="button"]:hover {
+  filter: brightness(0.84);
+}
+
+body input:hover,
+body textarea:hover,
+body select:hover {
+  filter: brightness(0.96);
+}
+
+/* --------------------------------------------------
+   API loading interactive state
+-------------------------------------------------- */
+
+body.opsflow-api-loading button:hover,
+body.opsflow-api-loading a:hover,
+body.opsflow-api-loading [role="button"]:hover {
+  filter: brightness(0.78);
+}
+
+/* --------------------------------------------------
+   Focus states
+-------------------------------------------------- */
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(244, 114, 182, 0.48) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(236, 72, 153, 0.08);
+}
+
+body.opsflow-api-loading input:focus,
+body.opsflow-api-loading textarea:focus,
+body.opsflow-api-loading select:focus {
+  border-color: rgba(167, 139, 250, 0.48) !important;
+
+  box-shadow:
+    0 0 0 3px rgba(139, 92, 246, 0.09);
+}
+
+/* --------------------------------------------------
+   Common status / information surfaces
+-------------------------------------------------- */
+
+.bg-amber-400\/\[0\.05\],
+.bg-amber-400\/\[0\.06\] {
+  background: rgba(236, 72, 153, 0.055) !important;
+  border-color: rgba(244, 114, 182, 0.18) !important;
+}
+
+/* Keep destructive actions recognizable */
+
+.bg-red-500\/10,
+.bg-red-400\/\[0\.025\] {
+  background: rgba(127, 29, 29, 0.10) !important;
+}
+
+.border-red-400\/10,
+.border-red-400\/15 {
+  border-color: rgba(248, 113, 113, 0.16) !important;
+}
+
+/* --------------------------------------------------
+   Disabled controls
+-------------------------------------------------- */
+
+button:disabled,
+input:disabled,
+textarea:disabled,
+select:disabled {
+  cursor: not-allowed;
+  filter: saturate(0.55);
+}
+
+/* --------------------------------------------------
+   Selection
+-------------------------------------------------- */
+
+::selection {
+  background: rgba(236, 72, 153, 0.30);
+  color: white;
+}
+/* =========================================================
+   SAME COLOR SYSTEM AS TEAMS
+========================================================= */
+
+body {
+  background: #0b090b;
+}
+
+/* Main page backgrounds */
+.bg-\[\#09090b\],
+.bg-\[\#0b090b\],
+.bg-\[\#0b0b0d\] {
+  background:
+    radial-gradient(
+      circle at 10% 8%,
+      rgba(236, 72, 153, 0.045),
+      transparent 32%
+    ),
+    radial-gradient(
+      circle at 90% 12%,
+      rgba(236, 72, 153, 0.035),
+      transparent 30%
+    ),
+    #0b090b !important;
+}
+
+/* =========================================================
+   EXACT TEAMS-STYLE CARDS
+========================================================= */
+
+.bg-white\/\[0\.025\],
+.bg-white\/\[0\.03\],
+.bg-white\/\[0\.035\],
+.bg-white\/\[0\.04\] {
+  background: rgba(131, 24, 67, 0.08) !important;
+  border-color: rgba(255, 255, 255, 0.20) !important;
+}
+
+/* Teams uses stronger pink section surfaces */
+.bg-pink-950\/15 {
+  background: rgba(76, 5, 25, 0.15) !important;
+}
+
+.bg-pink-900\/\[0\.06\] {
+  background: rgba(136, 19, 55, 0.06) !important;
+}
+
+/* =========================================================
+   SAME TEAMS BORDERS
+========================================================= */
+
+.border-white\/\[0\.07\],
+.border-white\/10,
+.border-white\/20 {
+  border-color: rgba(255, 255, 255, 0.20) !important;
+}
+
+.border-white\/35 {
+  border-color: rgba(255, 255, 255, 0.35) !important;
+}
+
+/* =========================================================
+   SAME TEAMS PINK ACCENTS
+========================================================= */
+
+.border-pink-300\/20 {
+  border-color: rgba(249, 168, 212, 0.20) !important;
+}
+
+.border-pink-300\/40 {
+  border-color: rgba(249, 168, 212, 0.40) !important;
+}
+
+.text-pink-200 {
+  color: rgb(251, 207, 232) !important;
+}
+
+.text-pink-300 {
+  color: rgb(249, 168, 212) !important;
+}
+
+/* =========================================================
+   SAME TEAMS HOVER
+========================================================= */
+
+.bg-white\/\[0\.025\]:hover,
+.bg-white\/\[0\.03\]:hover,
+.bg-white\/\[0\.035\]:hover,
+.bg-white\/\[0\.04\]:hover {
+  background: rgba(76, 5, 25, 0.30) !important;
+  border-color: rgba(249, 168, 212, 0.40) !important;
+}
+
+/* =========================================================
+   SAME TEAMS PINK GLOW
+========================================================= */
+
+.shadow-\[0_18px_45px_rgba\(236\2c72\2c153\2c0\.07\)\] {
+  box-shadow:
+    0 18px 45px rgba(236, 72, 153, 0.07) !important;
+}
+
+/* =========================================================
+   BUTTONS
+========================================================= */
+
+.bg-white.text-zinc-950 {
+  background: white !important;
+  color: #18181b !important;
+}
+
+.bg-white.text-zinc-950:hover {
+  background: #e4e4e7 !important;
+}
+
+/* =========================================================
+   INPUTS
+========================================================= */
+
+input,
+textarea,
+select {
+  background: rgba(76, 5, 25, 0.08);
+  border-color: rgba(255, 255, 255, 0.20);
+}
+
+input:focus,
+textarea:focus,
+select:focus {
+  border-color: rgba(249, 168, 212, 0.40) !important;
+  box-shadow: 0 0 0 3px rgba(236, 72, 153, 0.07);
+}
+
+/* =========================================================
+   NO EXTRA COLOR TRANSFORMATION
+========================================================= */
+
+body button:hover,
+body a:hover,
+body [role="button"]:hover {
+  filter: none;
+}
+
+body input:hover,
+body textarea:hover,
+body select:hover {
+  filter: none;
 }

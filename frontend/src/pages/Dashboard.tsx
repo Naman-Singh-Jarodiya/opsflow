@@ -1,424 +1,477 @@
-import { Link } from 'react-router-dom'
 import {
   AlertCircle,
-  ArrowRight,
   ArrowUpRight,
   CheckCircle2,
   Clock3,
-  MoreHorizontal,
+  Loader2,
   Plus,
   Search,
-  Users,
+  TriangleAlert,
 } from 'lucide-react'
 
-const stats = [
-  {
-    label: 'Open work',
-    value: '24',
-    change: '+4 this week',
-    icon: AlertCircle,
-    glow: 'bg-blue-500',
-    iconColor: 'text-blue-300',
-  },
-  {
-    label: 'In progress',
-    value: '12',
-    change: '5 due today',
-    icon: Clock3,
-    glow: 'bg-cyan-500',
-    iconColor: 'text-cyan-300',
-  },
-  {
-    label: 'High priority',
-    value: '7',
-    change: '3 need attention',
-    icon: ArrowUpRight,
-    glow: 'bg-violet-500',
-    iconColor: 'text-violet-300',
-  },
-  {
-    label: 'Resolved today',
-    value: '18',
-    change: '+12% from yesterday',
-    icon: CheckCircle2,
-    glow: 'bg-emerald-500',
-    iconColor: 'text-emerald-300',
-  },
-]
+import { useQuery } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
-const workItems = [
-  {
-    id: '#1042',
-    title: 'Payment gateway timeout investigation',
-    team: 'Payments',
-    status: 'In Progress',
-    priority: 'Urgent',
-    owner: 'RK',
-    due: 'Today',
-  },
-  {
-    id: '#1041',
-    title: 'Warehouse inventory sync failing',
-    team: 'Operations',
-    status: 'Blocked',
-    priority: 'High',
-    owner: 'AS',
-    due: 'Today',
-  },
-  {
-    id: '#1038',
-    title: 'Update customer escalation workflow',
-    team: 'Support',
-    status: 'Open',
-    priority: 'High',
-    owner: 'MP',
-    due: 'Tomorrow',
-  },
-  {
-    id: '#1035',
-    title: 'Review vendor onboarding request',
-    team: 'Procurement',
-    status: 'Open',
-    priority: 'Medium',
-    owner: 'NV',
-    due: 'Oct 6',
-  },
-]
+import {
+  getDashboard,
+  type DashboardActivity,
+  type DashboardWorkItem,
+} from '../lib/api'
 
-const activities = [
-  {
-    text: 'Rahul moved Payment gateway timeout investigation to In Progress',
-    time: '12 min ago',
-    initials: 'RK',
-  },
-  {
-    text: 'Ananya assigned Warehouse inventory sync to herself',
-    time: '28 min ago',
-    initials: 'AS',
-  },
-  {
-    text: 'Manisha changed escalation workflow priority to High',
-    time: '1 hr ago',
-    initials: 'MP',
-  },
-  {
-    text: 'Nikhil resolved Vendor access request',
-    time: '2 hrs ago',
-    initials: 'NV',
-  },
-]
+function formatTime(value: string) {
+  const date = new Date(value)
+  const now = new Date()
 
-function StatusBadge({ status }: { status: string }) {
-  const styles: Record<string, string> = {
-    'In Progress':
-      'border-blue-300/45 bg-blue-500/15 text-blue-200',
+  const diff = now.getTime() - date.getTime()
+  const minutes = Math.floor(diff / 60000)
 
-    Blocked:
-      'border-red-300/45 bg-red-500/10 text-red-200',
-
-    Open:
-      'border-slate-300/35 bg-slate-800/70 text-slate-200',
+  if (minutes < 1) {
+    return 'Just now'
   }
 
-  return (
-    <span
-      className={`inline-flex rounded-md border px-2.5 py-1 text-[11px] font-medium ${
-        styles[status] ?? styles.Open
-      }`}
-    >
-      {status}
-    </span>
-  )
-}
-
-function PriorityBadge({ priority }: { priority: string }) {
-  const styles: Record<string, string> = {
-    Urgent: 'text-red-300',
-    High: 'text-violet-300',
-    Medium: 'text-blue-300',
-    Low: 'text-slate-400',
+  if (minutes < 60) {
+    return `${minutes}m ago`
   }
 
-  return (
-    <span
-      className={`text-xs font-medium ${
-        styles[priority] ?? 'text-slate-400'
-      }`}
-    >
-      {priority}
-    </span>
-  )
+  const hours = Math.floor(minutes / 60)
+
+  if (hours < 24) {
+    return `${hours}h ago`
+  }
+
+  const days = Math.floor(hours / 24)
+
+  return `${days}d ago`
 }
 
-export default function Dashboard() {
+function getPriorityClasses(priority: string) {
+  switch (priority) {
+    case 'URGENT':
+      return 'border-red-400/30 bg-red-400/10 text-red-300'
+    case 'HIGH':
+      return 'border-orange-400/30 bg-orange-400/10 text-orange-300'
+    case 'MEDIUM':
+      return 'border-yellow-400/30 bg-yellow-400/10 text-yellow-300'
+    default:
+      return 'border-zinc-400/20 bg-zinc-400/10 text-zinc-400'
+  }
+}
+
+function getStatusClasses(status: string) {
+  switch (status) {
+    case 'OPEN':
+      return 'border-pink-300/20 bg-pink-950/25 text-pink-200'
+    case 'IN_PROGRESS':
+      return 'border-pink-300/20 bg-pink-950/25 text-pink-200'
+    case 'BLOCKED':
+      return 'border-red-400/30 bg-red-400/10 text-red-300'
+    case 'RESOLVED':
+      return 'border-pink-300/20 bg-pink-950/25 text-pink-200'
+    case 'CLOSED':
+      return 'border-pink-300/20 bg-pink-950/25 text-pink-200'
+    default:
+      return 'border-white/20 bg-white/5 text-zinc-400'
+  }
+}
+
+function getActivityText(activity: DashboardActivity) {
+  const user = activity.user?.name ?? 'Someone'
+  const item = activity.workItem?.title ?? 'a work item'
+
+  switch (activity.type) {
+    case 'CREATED':
+      return `${user} created "${item}"`
+    case 'UPDATED':
+      return `${user} updated "${item}"`
+    case 'ASSIGNED':
+      return `${user} changed ownership of "${item}"`
+    case 'STATUS_CHANGED':
+      return `${user} changed the status of "${item}"`
+    case 'COMMENTED':
+      return `${user} commented on "${item}"`
+    case 'DELETED':
+      return `${user} deleted "${item}"`
+    default:
+      return `${user} performed an action on "${item}"`
+  }
+}
+
+function WorkItemRow({ item }: { item: DashboardWorkItem }) {
   return (
-    <div className="relative min-h-full overflow-hidden bg-[#070810]">
+    <Link
+      to={`/work-items/${item.id}`}
+      className="group flex items-center gap-4 border-b border-white/20 px-6 py-4 transition last:border-b-0 hover:bg-pink-950/30"
+    >
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          {item.priority === 'URGENT' && (
+            <TriangleAlert className="h-4 w-4 shrink-0 text-red-400" />
+          )}
 
-      {/* =========================================================
-          VIBRANT AMBIENT BACKGROUND
-      ========================================================= */}
-      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <p className="truncate text-sm font-medium text-zinc-100 group-hover:text-pink-100">
+            {item.title}
+          </p>
+        </div>
 
-        <div className="absolute -left-48 -top-56 h-[720px] w-[720px] rounded-full bg-indigo-500/[0.34] blur-[130px]" />
+        <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-500">
+          <span>{item.team.name}</span>
 
-        <div className="absolute -right-48 -top-40 h-[680px] w-[680px] rounded-full bg-blue-500/[0.30] blur-[135px]" />
+          <span className="text-zinc-700">•</span>
 
-        <div className="absolute bottom-[-300px] left-[18%] h-[720px] w-[720px] rounded-full bg-violet-500/[0.25] blur-[145px]" />
-
-        <div className="absolute bottom-[-250px] right-[-120px] h-[620px] w-[620px] rounded-full bg-cyan-400/[0.18] blur-[135px]" />
-
-        <div className="absolute left-[42%] top-[25%] h-[420px] w-[420px] rounded-full bg-blue-600/[0.08] blur-[150px]" />
-
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_0%,rgba(7,8,16,0.06)_45%,rgba(7,8,16,0.42)_100%)]" />
-
+          <span>{item.assignee?.name ?? 'Unassigned'}</span>
+        </div>
       </div>
 
-      <div className="relative mx-auto w-full max-w-[1500px] p-6 lg:p-8">
+      <span
+        className={`hidden rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide sm:inline-flex ${getPriorityClasses(item.priority)}`}
+      >
+        {item.priority}
+      </span>
 
-        {/* =========================================================
-            HEADER
-        ========================================================= */}
-        <div className="mb-8 flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
+      <span
+        className={`rounded-full border px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide ${getStatusClasses(item.status)}`}
+      >
+        {item.status.replace('_', ' ')}
+      </span>
 
-          <div>
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-indigo-300/90">
-              Saturday, October 3, 2026
-            </p>
+      <ArrowUpRight className="h-4 w-4 text-zinc-700 transition group-hover:text-pink-300" />
+    </Link>
+  )
+}
 
-            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-white">
-              Good morning, Nitika
-            </h1>
+function Dashboard() {
+  const {
+    data,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useQuery({
+    queryKey: ['dashboard'],
+    queryFn: getDashboard,
+    staleTime: 30_000,
+  })
 
-            <p className="mt-2 text-sm text-zinc-400">
-              Here&apos;s what needs your attention today.
-            </p>
+  const stats = data?.stats
+
+  return (
+    <div className="relative min-h-full overflow-hidden bg-[#09090b] text-white">
+      <div className="pointer-events-none absolute -left-32 -top-32 h-[420px] w-[420px] rounded-full bg-pink-500/[0.07] blur-[120px]" />
+
+      <div className="pointer-events-none absolute right-0 top-0 h-[380px] w-[380px] rounded-full bg-pink-400/[0.05] blur-[120px]" />
+
+      <div className="relative px-8 py-8">
+        <div className="mx-auto max-w-[1500px]">
+          <div className="mb-8 flex flex-col justify-between gap-5 xl:flex-row xl:items-end">
+            <div>
+              <p className="mb-2 text-xs font-medium uppercase tracking-[0.18em] text-pink-200/40">
+                Saturday · October 3, 2026
+              </p>
+
+              <h1 className="text-3xl font-semibold tracking-tight text-white">
+                Good morning
+              </h1>
+
+              <p className="mt-2 text-sm text-zinc-500">
+                Here's what needs your attention today.
+              </p>
+            </div>
+
+            <Link
+              to="/work-items/new"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border-2 border-white/20 bg-pink-950/25 px-5 text-sm font-semibold text-pink-100 shadow-lg shadow-pink-950/10 transition hover:border-pink-300/40 hover:bg-pink-950/40"
+            >
+              <Plus className="h-4 w-4" />
+              New work item
+            </Link>
           </div>
 
-          <Link
-            to="/work-items/new"
-            className="group inline-flex w-fit items-center gap-2 rounded-lg border-2 border-white/25 bg-white px-4 py-2.5 text-sm font-semibold text-black shadow-[0_10px_35px_rgba(0,0,0,0.35)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-blue-50 hover:shadow-blue-500/20"
-          >
-            <Plus className="h-4 w-4" />
+          <div className="mb-7 flex max-w-xl items-center gap-3 rounded-xl border-2 border-white/20 bg-pink-950/[0.08] px-4 py-3 shadow-lg shadow-pink-950/10 backdrop-blur-xl">
+            <Search className="h-4 w-4 text-pink-200/50" />
 
-            New work item
+            <input
+              type="text"
+              placeholder="Search work items..."
+              className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+            />
 
-            <ArrowRight className="h-3.5 w-3.5 opacity-0 transition-all duration-200 group-hover:translate-x-0.5 group-hover:opacity-100" />
-          </Link>
+            <kbd className="hidden rounded-md border border-white/20 bg-pink-950/25 px-2 py-1 text-[10px] text-zinc-600 sm:block">
+              /
+            </kbd>
+          </div>
 
-        </div>
+          {isLoading && (
+            <div className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div
+                  key={index}
+                  className="h-[125px] animate-pulse rounded-2xl border-2 border-white/20 bg-pink-950/[0.08]"
+                />
+              ))}
+            </div>
+          )}
 
-        {/* =========================================================
-            SEARCH
-        ========================================================= */}
-        <div className="group mb-8 flex items-center gap-3 rounded-xl border-2 border-white/30 bg-[#0a0c14]/60 px-4 py-3 backdrop-blur-xl transition-all duration-200 focus-within:border-indigo-300/70 focus-within:bg-indigo-500/[0.05] focus-within:shadow-[0_0_40px_rgba(99,102,241,0.18)]">
+          {isError && (
+            <div className="mb-7 flex items-center justify-between rounded-2xl border-2 border-red-400/20 bg-red-400/[0.06] px-5 py-4">
+              <div className="flex items-center gap-3">
+                <AlertCircle className="h-5 w-5 text-red-400" />
 
-          <Search className="h-4 w-4 text-zinc-500 transition group-focus-within:text-indigo-300" />
+                <div>
+                  <p className="text-sm font-medium text-red-200">
+                    Dashboard data could not be loaded.
+                  </p>
 
-          <input
-            type="text"
-            placeholder="Search work items, teams, or people..."
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
-          />
+                  <p className="mt-1 text-xs text-red-300/60">
+                    {error instanceof Error
+                      ? error.message
+                      : 'Please try again.'}
+                  </p>
+                </div>
+              </div>
 
-          <kbd className="hidden rounded-md border-2 border-white/20 bg-white/[0.05] px-2 py-1 text-[11px] text-zinc-500 sm:block">
-            ⌘ K
-          </kbd>
-
-        </div>
-
-        {/* =========================================================
-            STAT CARDS
-        ========================================================= */}
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-
-          {stats.map((stat) => {
-            const Icon = stat.icon
-
-            return (
-              <div
-                key={stat.label}
-                className="group relative overflow-hidden rounded-xl border-2 border-white/30 bg-[#090b12]/60 p-5 backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-indigo-300/60 hover:bg-indigo-500/[0.045] hover:shadow-[0_15px_50px_rgba(30,64,175,0.16)]"
+              <button
+                type="button"
+                onClick={() => refetch()}
+                className="rounded-lg border border-red-400/20 px-3 py-2 text-xs font-medium text-red-200 transition hover:bg-red-400/10"
               >
+                Retry
+              </button>
+            </div>
+          )}
 
-                <div
-                  className={`absolute -right-14 -top-14 h-36 w-36 rounded-full blur-[55px] opacity-40 ${stat.glow}`}
-                />
+          <div className="mb-7 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <div className="rounded-2xl border-2 border-white/35 bg-pink-950/[0.08] p-5 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-500">
+                  Total work items
+                </span>
 
-                <div
-                  className={`absolute -bottom-14 -left-10 h-28 w-28 rounded-full blur-[55px] opacity-15 ${stat.glow}`}
-                />
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-300/20 bg-pink-950/25 text-pink-200">
+                  <ListIcon />
+                </div>
+              </div>
 
-                <div className="relative flex items-start justify-between">
+              <p className="mt-5 text-3xl font-semibold tracking-tight text-white">
+                {stats?.totalWorkItems ?? '—'}
+              </p>
 
-                  <div>
-                    <p className="text-sm text-zinc-400">
-                      {stat.label}
-                    </p>
+              <p className="mt-1 text-xs text-zinc-600">
+                Across your teams
+              </p>
+            </div>
 
-                    <p className="mt-3 text-3xl font-semibold tracking-tight text-white">
-                      {stat.value}
-                    </p>
-                  </div>
+            <div className="rounded-2xl border-2 border-white/35 bg-pink-950/[0.08] p-5 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-500">
+                  Open
+                </span>
 
-                  <div className="rounded-lg border-2 border-white/20 bg-white/[0.05] p-2.5 transition-all duration-300 group-hover:border-indigo-300/50 group-hover:bg-indigo-500/10">
-                    <Icon className={`h-4 w-4 ${stat.iconColor}`} />
-                  </div>
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-300/20 bg-pink-950/25">
+                  <Clock3 className="h-4 w-4 text-pink-200" />
+                </div>
+              </div>
 
+              <p className="mt-5 text-3xl font-semibold tracking-tight text-white">
+                {stats?.openWorkItems ?? '—'}
+              </p>
+
+              <p className="mt-1 text-xs text-zinc-600">
+                Waiting to be started
+              </p>
+            </div>
+
+            <div className="rounded-2xl border-2 border-white/35 bg-pink-950/[0.08] p-5 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-500">
+                  In progress
+                </span>
+
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-300/20 bg-pink-950/25">
+                  <Loader2 className="h-4 w-4 text-pink-200" />
+                </div>
+              </div>
+
+              <p className="mt-5 text-3xl font-semibold tracking-tight text-white">
+                {stats?.inProgressWorkItems ?? '—'}
+              </p>
+
+              <p className="mt-1 text-xs text-zinc-600">
+                Currently being handled
+              </p>
+            </div>
+
+            <div className="rounded-2xl border-2 border-white/35 bg-pink-950/[0.08] p-5 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-medium text-zinc-500">
+                  Urgent
+                </span>
+
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-pink-300/20 bg-pink-950/25">
+                  <TriangleAlert className="h-4 w-4 text-pink-200" />
+                </div>
+              </div>
+
+              <p className="mt-5 text-3xl font-semibold tracking-tight text-white">
+                {stats?.urgentWorkItems ?? '—'}
+              </p>
+
+              <p className="mt-1 text-xs text-zinc-600">
+                Need immediate attention
+              </p>
+            </div>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+            <section className="overflow-hidden rounded-2xl border-2 border-white/35 bg-pink-950/15 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="flex items-center justify-between border-b-2 border-white/20 bg-pink-900/[0.06] px-6 py-5">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">
+                    Work needing attention
+                  </h2>
+
+                  <p className="mt-1 text-xs text-zinc-600">
+                    Items that may require action
+                  </p>
                 </div>
 
-                <p className="relative mt-4 text-xs text-zinc-500">
-                  {stat.change}
-                </p>
-
-              </div>
-            )
-          })}
-
-        </div>
-
-        {/* =========================================================
-            MAIN CONTENT
-        ========================================================= */}
-        <div className="mt-8 grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
-
-          {/* =====================================================
-              WORK NEEDING ATTENTION
-          ===================================================== */}
-          <section className="overflow-hidden rounded-2xl border-2 border-white/35 bg-[#080a11]/60 shadow-2xl shadow-indigo-950/25 backdrop-blur-xl">
-
-            <div className="flex items-center justify-between border-b-2 border-white/20 bg-white/[0.025] px-5 py-4">
-
-              <div>
-                <h2 className="text-sm font-semibold text-white">
-                  Work needing attention
-                </h2>
-
-                <p className="mt-1 text-xs text-zinc-500">
-                  Items that may require action from your team.
-                </p>
-              </div>
-
-              <Link
-                to="/work-items"
-                className="rounded-md border border-transparent px-2 py-1 text-xs font-medium text-zinc-500 transition hover:border-indigo-300/40 hover:bg-indigo-500/10 hover:text-indigo-300"
-              >
-                View all
-              </Link>
-
-            </div>
-
-            <div className="divide-y-2 divide-white/[0.10]">
-
-              {workItems.map((item) => (
                 <Link
-                  key={item.id}
-                  to={`/work-items/${item.id.replace('#', '')}`}
-                  className="group flex items-center gap-4 px-5 py-4 transition-all duration-200 hover:bg-indigo-500/[0.055]"
+                  to="/work-items"
+                  className="text-xs font-medium text-pink-200/70 transition hover:text-pink-100"
                 >
-
-                  <div className="hidden w-12 shrink-0 text-xs font-medium text-zinc-600 transition group-hover:text-indigo-400 sm:block">
-                    {item.id}
-                  </div>
-
-                  <div className="min-w-0 flex-1">
-
-                    <p className="truncate text-sm font-medium text-zinc-200 transition group-hover:text-white">
-                      {item.title}
-                    </p>
-
-                    <div className="mt-1.5 flex items-center gap-2 text-xs text-zinc-600">
-                      <span>{item.team}</span>
-                      <span>•</span>
-                      <span>Due {item.due}</span>
-                    </div>
-
-                  </div>
-
-                  <div className="hidden min-w-24 md:block">
-                    <StatusBadge status={item.status} />
-                  </div>
-
-                  <div className="hidden min-w-16 lg:block">
-                    <PriorityBadge priority={item.priority} />
-                  </div>
-
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white/25 bg-white/[0.05] text-[10px] font-semibold text-zinc-300 transition-all duration-200 group-hover:border-indigo-300/60 group-hover:bg-indigo-500/10 group-hover:text-indigo-300">
-                    {item.owner}
-                  </div>
-
-                  <button
-                    type="button"
-                    aria-label={`More options for ${item.title}`}
-                    onClick={(event) => event.preventDefault()}
-                    className="rounded-md border border-transparent p-1.5 text-zinc-700 opacity-0 transition-all duration-200 hover:border-white/20 hover:bg-white/[0.07] hover:text-white group-hover:opacity-100"
-                  >
-                    <MoreHorizontal className="h-4 w-4" />
-                  </button>
-
+                  View all
                 </Link>
-              ))}
+              </div>
 
-            </div>
+              {data?.attentionItems.length === 0 ? (
+                <div className="flex min-h-[240px] flex-col items-center justify-center px-6 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full border border-pink-300/20 bg-pink-950/25">
+                    <CheckCircle2 className="h-5 w-5 text-pink-200" />
+                  </div>
 
-          </section>
+                  <p className="mt-4 text-sm font-medium text-zinc-300">
+                    Nothing needs attention
+                  </p>
 
-          {/* =====================================================
-              RECENT ACTIVITY
-          ===================================================== */}
-          <section className="overflow-hidden rounded-2xl border-2 border-white/35 bg-[#080a11]/60 shadow-2xl shadow-blue-950/25 backdrop-blur-xl">
+                  <p className="mt-1 max-w-sm text-xs text-zinc-600">
+                    Your teams don't currently have urgent, blocked, or open
+                    items requiring attention.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y-2 divide-white/[0.08]">
+                  {data?.attentionItems.map((item) => (
+                    <WorkItemRow key={item.id} item={item} />
+                  ))}
+                </div>
+              )}
+            </section>
 
-            <div className="flex items-center justify-between border-b-2 border-white/20 bg-white/[0.025] px-5 py-4">
-
-              <div>
+            <section className="overflow-hidden rounded-2xl border-2 border-white/35 bg-pink-950/15 shadow-2xl shadow-pink-950/10 backdrop-blur-xl">
+              <div className="border-b-2 border-white/20 bg-pink-900/[0.06] px-6 py-5">
                 <h2 className="text-sm font-semibold text-white">
                   Recent activity
                 </h2>
 
-                <p className="mt-1 text-xs text-zinc-500">
-                  Latest changes across your workspace.
+                <p className="mt-1 text-xs text-zinc-600">
+                  Latest changes across your teams
                 </p>
               </div>
 
-              <div className="rounded-lg border-2 border-white/20 bg-indigo-500/10 p-2">
-                <Users className="h-4 w-4 text-indigo-300" />
-              </div>
-
-            </div>
-
-            <div className="divide-y-2 divide-white/[0.10]">
-
-              {activities.map((activity) => (
-                <div
-                  key={activity.text}
-                  className="group flex gap-3 px-5 py-4 transition-all duration-200 hover:bg-blue-500/[0.055]"
-                >
-
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white/25 bg-white/[0.05] text-[10px] font-semibold text-zinc-400 transition-all duration-200 group-hover:border-blue-300/60 group-hover:bg-blue-500/10 group-hover:text-blue-300">
-                    {activity.initials}
-                  </div>
-
-                  <div className="min-w-0">
-
-                    <p className="text-xs leading-5 text-zinc-400 transition group-hover:text-zinc-300">
-                      {activity.text}
-                    </p>
-
-                    <p className="mt-1 text-[11px] text-zinc-600">
-                      {activity.time}
-                    </p>
-
-                  </div>
-
+              {data?.recentActivity.length === 0 ? (
+                <div className="flex min-h-[240px] items-center justify-center px-6 text-center">
+                  <p className="text-xs text-zinc-600">
+                    No recent activity.
+                  </p>
                 </div>
-              ))}
+              ) : (
+                <div className="divide-y divide-white/[0.08]">
+                  {data?.recentActivity.map((activity) => (
+                    <div
+                      key={activity.id}
+                      className="px-6 py-4 transition hover:bg-pink-950/[0.08]"
+                    >
+                      <div className="flex gap-3">
+                        <div className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-pink-300/20 bg-pink-950/25">
+                          <ActivityIcon type={activity.type} />
+                        </div>
 
-            </div>
+                        <div className="min-w-0">
+                          <p className="text-xs leading-5 text-zinc-400">
+                            {getActivityText(activity)}
+                          </p>
 
-          </section>
-
+                          <p className="mt-1 text-[10px] text-zinc-700">
+                            {formatTime(activity.createdAt)}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </section>
+          </div>
         </div>
-
       </div>
     </div>
   )
 }
+
+function ListIcon() {
+  return (
+    <svg
+      viewBox="0 0 16 16"
+      className="h-4 w-4 text-pink-200"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    >
+      <path
+        d="M5 4h7M5 8h7M5 12h7"
+        strokeLinecap="round"
+      />
+
+      <circle
+        cx="2.5"
+        cy="4"
+        r=".7"
+        fill="currentColor"
+        stroke="none"
+      />
+
+      <circle
+        cx="2.5"
+        cy="8"
+        r=".7"
+        fill="currentColor"
+        stroke="none"
+      />
+
+      <circle
+        cx="2.5"
+        cy="12"
+        r=".7"
+        fill="currentColor"
+        stroke="none"
+      />
+    </svg>
+  )
+}
+
+function ActivityIcon({ type }: { type: string }) {
+  if (type === 'DELETED') {
+    return <AlertCircle className="h-3.5 w-3.5 text-red-300" />
+  }
+
+  if (type === 'STATUS_CHANGED') {
+    return <Clock3 className="h-3.5 w-3.5 text-pink-200" />
+  }
+
+  if (type === 'ASSIGNED') {
+    return <ArrowUpRight className="h-3.5 w-3.5 text-pink-200" />
+  }
+
+  return <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+}
+
+export default Dashboard
